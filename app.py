@@ -1,13 +1,121 @@
 import sys
 
-from PySide6.QtCore import Slot
-from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QApplication, QMainWindow
+from PySide6.QtCharts import QPieSeries, QChart, QChartView
+from PySide6.QtCore import Slot, Qt
+from PySide6.QtGui import QAction, QPainter
+from PySide6.QtWidgets import QApplication, QMainWindow, QWidget, QTableWidget, QHeaderView, QHBoxLayout, \
+    QTableWidgetItem, QLineEdit, QPushButton, QVBoxLayout, QLabel
+
+
+class Widget(QWidget):
+    def __init__(self):
+        QWidget.__init__(self)
+        self.items = 0
+
+        self._data = {'Water': 24, 'Rent': 100, 'Coffee': 30, 'Grocery': 300, 'Phone': 45, 'Internet': 70}
+
+        self.table = QTableWidget()
+        self.table.setColumnCount(2)
+        self.table.setHorizontalHeaderLabels(['Description', 'Expense'])
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+
+        self.chart_view = QChartView()
+        self.chart_view.setRenderHint(QPainter.Antialiasing)
+
+        self.description = QLineEdit()
+        self.expense = QLineEdit()
+        self.add = QPushButton('Add')
+        self.clear = QPushButton('Clear')
+        self.quit = QPushButton('Quit')
+        self.plot = QPushButton('Plot')
+
+        self.add.setEnabled(False)
+
+        self.right = QVBoxLayout()
+        self.right.addWidget(QLabel('Description'))
+        self.right.addWidget(self.description)
+        self.right.addWidget(QLabel('($)Expense'))
+        self.right.addWidget(self.expense)
+        self.right.addWidget(self.add)
+        self.right.addWidget(self.plot)
+        self.right.addWidget(self.chart_view)
+        self.right.addWidget(self.clear)
+        self.right.addWidget(self.quit)
+
+        self.layout = QHBoxLayout()
+
+        self.layout.addWidget(self.table)
+        self.layout.addLayout(self.right)
+
+        self.setLayout(self.layout)
+
+        self.add.clicked.connect(self.add_element)
+        self.quit.clicked.connect(self.quit_app)
+        self.plot.clicked.connect(self.plot_data)
+        self.clear.clicked.connect(self.clear_table)
+        self.description.textChanged[str].connect(self.check_disable)
+        self.expense.textChanged[str].connect(self.check_disable)
+
+        self.fill_table()
+
+    @Slot()
+    def add_element(self):
+        desc = self.description.text()
+        exp = self.expense.text()
+
+        try:
+            expense_item = QTableWidgetItem(float(exp))
+            expense_item.setTextAlignment(Qt.AlignRight)
+            self.table.insertRow(self.items)
+            self.table.setItem(self.items, 0, QTableWidgetItem(desc))
+            self.table.setItem(self.items, 1, QTableWidgetItem(exp))
+
+            self.description.setText('')
+            self.expense.setText('')
+            self.items += 1
+        except ValueError:
+            print("Wrong input!")
+
+    @Slot()
+    def check_disable(self, x):
+        if not self.description.text() or not self.expense.text():
+            self.add.setEnabled(False)
+        else:
+            self.add.setEnabled(True)
+
+    @Slot()
+    def plot_data(self):
+        series = QPieSeries()
+        for i in range(self.table.rowCount()):
+            text = self.table.item(i, 0).text()
+            number = float(self.table.item(i, 1).text())
+            series.append(text, number)
+        chart = QChart()
+        chart.addSeries(series)
+        chart.legend().setAlignment(Qt.AlignLeft)
+        self.chart_view.setChart(chart)
+
+    @Slot()
+    def quit_app(self):
+        QApplication.quit()
+
+    def fill_table(self, data=None):
+        data = self._data if not data else data
+        for desc, exp in data.items():
+            self.table.insertRow(self.items)
+            self.table.setItem(self.items, 0, QTableWidgetItem(desc))
+            self.table.setItem(self.items, 1, QTableWidgetItem(str(exp)))
+            self.items += 1
+
+    @Slot()
+    def clear_table(self):
+        self.table.setRowCount(0)
+        self.items = 0
 
 
 class MainWindow(QMainWindow):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, widget):
+        QMainWindow.__init__(self)
         self.setWindowTitle('Expense Tracker')
 
         self.menu = self.menuBar()
@@ -16,7 +124,9 @@ class MainWindow(QMainWindow):
         exit_action = QAction('Exit', self)
         exit_action.setShortcut("Ctrl+Q")
         exit_action.triggered.connect(self.exit_app)
+
         self.file_menu.addAction(exit_action)
+        self.setCentralWidget(widget)
 
     @Slot()
     def exit_app(self, checked):
@@ -25,7 +135,8 @@ class MainWindow(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    window = MainWindow()
+    widget = Widget()
+    window = MainWindow(widget)
     window.resize(800, 600)
     window.show()
 
